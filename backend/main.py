@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from app import models, crud, database
+from app.audit_routes import router as audit_router
 from typing import List
 import datetime
 
@@ -19,6 +20,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include audit routes for governance compliance
+app.include_router(audit_router, prefix="/api", tags=["audit"])
 
 @app.get("/")
 async def root():
