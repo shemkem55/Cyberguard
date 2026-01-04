@@ -8,8 +8,12 @@ class IntentEngine:
         
     async def classify_intent(self, message: str) -> str:
         if self.core_ai.is_mock:
-            if "scan" in message.lower(): return "SCAN_REQUEST"
-            if "fix" in message.lower(): return "REMEDIATION_ADVICE"
+            m = message.lower()
+            if any(k in m for k in ["scan", "enumerate", "discover", "nmap"]): return "SCAN_REQUEST"
+            if any(k in m for k in ["fix", "patch", "remediate", "mitigate"]): return "REMEDIATION_ADVICE"
+            if any(k in m for k in ["why", "explain", "describe", "what is"]): return "VULN_EXPLANATION"
+            if any(k in m for k in ["list", "show", "get vulnerabilities"]): return "LIST_VULNERABILITIES"
+            if any(k in m for k in ["report", "generate", "summary"]): return "REPORT_GENERATION"
             return "GENERAL_CHAT"
             
         prompt = """

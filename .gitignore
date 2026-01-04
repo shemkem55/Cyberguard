@@ -1,0 +1,16 @@
+
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+*.db
+*.log
+audit_trail.jsonl
+node_modules/
+.next/
+dist/
+build/
+.DS_Store

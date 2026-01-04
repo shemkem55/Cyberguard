@@ -11,7 +11,24 @@ class ReasoningEngine:
         This step ensures the AI 'thinks' before it 'speaks'.
         """
         if self.core_ai.is_mock:
-            return "[Reasoning] Mock analysis: Query is safe. Context contains vulnerability data. Plan: Summarize findings."
+            return f"""
+            [FACT OBSERVATION]
+            - Input: "{message}"
+            - Known Assets: Target IP enumerated via Nmap.
+            - Detected Intent: {intent}
+            
+            [SECURITY ANALYSIS]
+            - Risk Factor: Significant based on {intent} category.
+            - Pattern Match: Request matches verified cybersecurity workflow.
+            
+            [SAFETY & POLICY CHECK]
+            - Governance: Action classified. Decision boundary evaluated.
+            - Result: COMPLIANT.
+            
+            [RESPONSE PLAN]
+            - Objective: Address {intent} with professional precision.
+            - Formatting: Applying elite-level chat standard.
+            """
 
         prompt = f"""
         You are the Internal Reasoning Module for a Cyber Security AI.

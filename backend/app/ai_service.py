@@ -1,3 +1,4 @@
+from typing import Dict
 from .core_ai import CoreAI
 from .intent_engine import IntentEngine
 from .strategy_engine import StrategyEngine
@@ -5,6 +6,7 @@ from .reasoning_engine import ReasoningEngine
 from .knowledge_graph import knowledge_graph
 from .governance_engine import governance_engine
 from .audit_trail import audit_trail
+from .communication_engine import communication_engine, ResponsePattern
 
 class AIService:
     def __init__(self):
@@ -15,6 +17,7 @@ class AIService:
         self.knowledge = knowledge_graph
         self.governance = governance_engine
         self.audit = audit_trail
+        self.communication = communication_engine
 
     async def chat_response(self, message: str, context: str = "", history: list = None, user_role: str = "Analyst"):
         if history is None: history = []
@@ -24,18 +27,16 @@ class AIService:
         print(f"[Orchestrator] Intent: {intent}")
         
         # 2. Governance Phase (Pillar 4: Safety & Authorization)
-        # Evaluate whether this action is allowed BEFORE proceeding
         print("[Orchestrator] Evaluating Governance Policies...")
         governance_decision = self.governance.evaluate_action(intent, message, user_role)
         print(f"[Governance]: {governance_decision['governance_note']}")
         
-        # Handle blocked actions (prohibited by policy)
+        # Handle blocked actions
         if not governance_decision["allowed"]:
             refusal_message = self.governance.generate_refusal_message(
                 self.governance.decision_boundary.classify_action(intent, message)
             )
             
-            # Log the blocked attempt to audit trail
             self.audit.log_decision(
                 user_role=user_role,
                 intent=intent,
@@ -60,7 +61,6 @@ class AIService:
                 user_role
             )
             
-            # Log the approval request
             self.audit.log_decision(
                 user_role=user_role,
                 intent=intent,
@@ -72,7 +72,6 @@ class AIService:
                 reasoning_summary="Action requires human authorization."
             )
             
-            # Still provide analysis, but with approval notice
             response_with_notice = f"{approval_message}\n\n---\n\n**Analysis (for review):**\n\n"
         else:
             response_with_notice = ""
@@ -81,7 +80,7 @@ class AIService:
         strategy = self.strategy_engine.determine_strategy(intent, context, user_role)
         print(f"[Orchestrator] Strategy: {strategy}")
         
-        # 4. Knowledge Retrieval Phase (Pillar 3: Intellectual Rigor)
+        # 4. Knowledge Retrieval Phase (Pillar 3)
         print("[Orchestrator] Querying Knowledge Graph...")
         relevant_knowledge = self.knowledge.query_knowledge(
             query=message,
@@ -90,23 +89,48 @@ class AIService:
         print(f"[Knowledge]: Retrieved {len(relevant_knowledge)} items")
         knowledge_sources = [item['source'] for item in relevant_knowledge]
         
-        # 5. Reasoning Phase (Pillar 2: Deep Intelligence)
+        # 5. Reasoning Phase (Pillar 2)
         print("[Orchestrator] Engaging Reasoning Engine...")
         reasoning_trace = await self.reasoning_engine.analyze(message, context, intent)
         print(f"[Reasoning Trace]: {reasoning_trace[:100]}...")
         
-        # 6. Execution Phase: Response Generation
+        # 6. Communication Discipline (Pillar 5)
+        # Determine if we should ask clarifying questions
+        should_clarify = self.communication.should_ask_clarification(message, context, intent)
+        conversation_discipline = self.communication.generate_conversation_discipline_prompt(intent)
+        
+        print(f"[Communication]: Discipline = {conversation_discipline[:50]}...")
+        
+        # 7. Execution Phase: Response Generation
         system_prompt = self._build_enterprise_prompt(
             intent, context, history, user_role, strategy, 
-            reasoning_trace, relevant_knowledge, governance_decision
+            reasoning_trace, relevant_knowledge, governance_decision,
+            conversation_discipline
         )
         
         response_text = await self.core.generate_response(system_prompt, message)
         
-        # Prepend approval notice if required
-        final_response = response_with_notice + response_text
+        # 8. Communication Polish (Pillar 5: Elite-Level Chat)
+        # Apply tone calibration and professional formatting
+        print("[Communication] Applying tone calibration...")
+        polished_response = self.communication.format_response(
+            raw_response=response_text,
+            pattern=self._determine_response_pattern(intent, strategy),
+            user_role=user_role,
+            intent=intent
+        )
         
-        # 7. Audit Trail (Pillar 4: Compliance & Accountability)
+        # Add professional sign-off
+        sign_off = self.communication.generate_professional_sign_off(
+            user_role=user_role,
+            requires_approval=governance_decision["requires_approval"]
+        )
+        polished_response += sign_off
+        
+        # Prepend approval notice if required
+        final_response = response_with_notice + polished_response
+        
+        # 9. Audit Trail (Pillar 4)
         self.audit.log_decision(
             user_role=user_role,
             intent=intent,
@@ -124,8 +148,21 @@ class AIService:
             "intent": intent,
             "governance": governance_decision
         }
+    
+    def _determine_response_pattern(self, intent: str, strategy: Dict) -> ResponsePattern:
+        """Map intent and strategy to appropriate response pattern"""
+        if intent == "REMEDIATION_ADVICE":
+            return ResponsePattern.STEP_BY_STEP
+        elif intent == "VULN_EXPLANATION":
+            return ResponsePattern.TECHNICAL_ANALYSIS
+        elif intent == "LIST_VULNERABILITIES":
+            return ResponsePattern.RISK_ASSESSMENT
+        elif intent == "REPORT_GENERATION":
+            return ResponsePattern.EXECUTIVE_SUMMARY
+        else:
+            return ResponsePattern.SIMPLE_ANSWER
         
-    def _build_enterprise_prompt(self, intent, context, history, user_role, strategy, reasoning_trace, knowledge_items, governance_decision):
+    def _build_enterprise_prompt(self, intent, context, history, user_role, strategy, reasoning_trace, knowledge_items, governance_decision, conversation_discipline):
         # [Identity Layer]
         identity = """
         You are CyberGuard-AI, an advanced cybersecurity assistant for enterprise.
@@ -141,7 +178,29 @@ class AIService:
         - Explicitly refuse unauthorized dangerous actions.
         """
         
-        # [Governance Layer] - Pillar 4: Authorization Context
+        # [Communication Standards Layer] - Pillar 5: Elite-Level Chat
+        communication_standards = f"""
+        COMMUNICATION EXCELLENCE:
+        - Tone: Calm, precise, conservative (never overconfident or speculative)
+        - Language: Professional (avoid "hack", "exploit", "guaranteed")
+        - Uncertainty: Explicitly state when uncertain ("Based on available data...", "Typically...")
+        - Conversation Discipline: {conversation_discipline}
+        - Structure: Clear sections with headers for readability
+        - Citations: Reference sources (e.g., "According to OWASP Top 10...")
+        
+        FORBIDDEN LANGUAGE:
+        - "100% certain", "guaranteed", "never fails"
+        - "hack", "exploit", "break into", "pwn"
+        - "revolutionary", "game-changing" (no hype)
+        
+        PREFERRED ALTERNATIVES:
+        - "assess" instead of "hack"
+        - "validate vulnerability" instead of "exploit"
+        - "security test" instead of "attack"
+        - "highly likely" instead of "guaranteed"
+        """
+        
+        # [Governance Layer]
         governance_block = f"""
         GOVERNANCE CONTEXT:
         Action Category: {governance_decision['action_category']}
@@ -151,7 +210,7 @@ class AIService:
         If this requires approval, provide analysis but clearly state execution is pending authorization.
         """
         
-        # [Knowledge Layer] - Pillar 3: Institutional Knowledge
+        # [Knowledge Layer]
         knowledge_block = "KNOWLEDGE BASE (Use these verified sources):\n"
         if knowledge_items:
             for idx, item in enumerate(knowledge_items[:5], 1):
@@ -182,10 +241,13 @@ class AIService:
         Address the user's intent [{intent}].
         When referencing knowledge, cite the source (e.g., "According to OWASP...").
         If tools are needed ({strategy['tools']}), mention them.
+        
+        Respond in a calm, professional manner appropriate for a senior security advisor.
         """
         
-        return f"{identity}\n\n{safety}\n\n{governance_block}\n\n{knowledge_block}\n\n{context_block}\n\n{reasoning_block}\n\n{instructions}"
+        return f"{identity}\n\n{safety}\n\n{communication_standards}\n\n{governance_block}\n\n{knowledge_block}\n\n{context_block}\n\n{reasoning_block}\n\n{instructions}"
 
 ai_service = AIService()
+
 
 

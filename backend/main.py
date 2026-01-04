@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from app import models, crud, database
 from app.audit_routes import router as audit_router
+from app.testing_routes import router as testing_router
+from app.metrics_routes import router as metrics_router
 from typing import List
 import datetime
 
@@ -21,8 +23,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include audit routes for governance compliance
+# Include routes for enterprise pillars
 app.include_router(audit_router, prefix="/api", tags=["audit"])
+app.include_router(testing_router, prefix="/api", tags=["testing"])
+app.include_router(metrics_router, prefix="/api", tags=["metrics"])
 
 @app.get("/")
 async def root():
