@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pydantic
+pydantic-settings
+python-dotenv
+langchain
+langchain-google-genai
+google-generativeai
+python-multipart
+requests
+neo4j
