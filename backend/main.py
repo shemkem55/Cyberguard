@@ -5,6 +5,7 @@ from app import models, crud, database
 from app.audit_routes import router as audit_router
 from app.testing_routes import router as testing_router
 from app.metrics_routes import router as metrics_router
+from app.learning_routes import router as learning_router
 from typing import List
 import datetime
 
@@ -27,6 +28,7 @@ app.add_middleware(
 app.include_router(audit_router, prefix="/api", tags=["audit"])
 app.include_router(testing_router, prefix="/api", tags=["testing"])
 app.include_router(metrics_router, prefix="/api", tags=["metrics"])
+app.include_router(learning_router, prefix="/api", tags=["learning"])
 
 @app.get("/")
 async def root():
@@ -148,7 +150,12 @@ async def chat_with_ai(data: dict, db: Session = Depends(database.get_db)):
         db.add(bot_msg)
         db.commit()
         
-        return {"response": response_text, "session_id": session.id, "intent": intent}
+        return {
+            "response": response_text, 
+            "session_id": session.id, 
+            "intent": intent,
+            "audit_id": result.get("audit_id")
+        }
         
     except Exception as e:
         print(f"Chat Error: {str(e)}")

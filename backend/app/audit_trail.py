@@ -4,6 +4,8 @@ from typing import Dict, List, Optional
 import json
 from pathlib import Path
 
+import uuid
+
 class AuditEntry:
     """Represents a single audit trail entry"""
     
@@ -19,6 +21,7 @@ class AuditEntry:
         knowledge_sources: List[str] = None,
         reasoning_summary: str = ""
     ):
+        self.id = str(uuid.uuid4())
         self.timestamp = timestamp
         self.user_role = user_role
         self.intent = intent
@@ -32,6 +35,7 @@ class AuditEntry:
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization"""
         return {
+            "id": self.id,
             "timestamp": self.timestamp.isoformat(),
             "user_role": self.user_role,
             "intent": self.intent,

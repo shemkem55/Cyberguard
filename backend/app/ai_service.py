@@ -131,7 +131,7 @@ class AIService:
         final_response = response_with_notice + polished_response
         
         # 9. Audit Trail (Pillar 4)
-        self.audit.log_decision(
+        audit_entry = self.audit.log_decision(
             user_role=user_role,
             intent=intent,
             message=message,
@@ -141,12 +141,13 @@ class AIService:
             knowledge_sources=knowledge_sources,
             reasoning_summary=reasoning_trace[:150]
         )
-        print(f"[Audit] Decision logged: {governance_decision['action_category']}")
+        print(f"[Audit] Decision logged: {governance_decision['action_category']} (ID: {audit_entry.id})")
         
         return {
             "response": final_response,
             "intent": intent,
-            "governance": governance_decision
+            "governance": governance_decision,
+            "audit_id": audit_entry.id
         }
     
     def _determine_response_pattern(self, intent: str, strategy: Dict) -> ResponsePattern:

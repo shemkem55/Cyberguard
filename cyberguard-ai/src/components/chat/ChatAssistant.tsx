@@ -14,6 +14,8 @@ function cn(...inputs: ClassValue[]) {
 interface Message {
     role: "user" | "bot";
     content: string;
+    audit_id?: string;
+    feedback_submitted?: boolean;
 }
 
 export const ChatAssistant: React.FC = () => {
@@ -24,6 +26,8 @@ export const ChatAssistant: React.FC = () => {
     ]);
     const [isLoading, setIsLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [showCorrectionId, setShowCorrectionId] = useState<number | null>(null);
+    const [correctionText, setCorrectionText] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -48,11 +52,38 @@ export const ChatAssistant: React.FC = () => {
 
         try {
             const { data } = await apiClient.post("/chat", { message: userMsg });
-            setMessages(prev => [...prev, { role: "bot", content: data.response }]);
+            // The audit_id would ideally come from the backend chat response
+            // For now we simulate it if not present
+            setMessages(prev => [...prev, {
+                role: "bot",
+                content: data.response,
+                audit_id: data.audit_id || `audit-${Date.now()}`
+            }]);
         } catch {
             setMessages(prev => [...prev, { role: "bot", content: "Error: Could not reach the Neural Link. Please check your connection." }]);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const submitFeedback = async (msgIndex: number, rating: number, correction?: string) => {
+        const msg = messages[msgIndex];
+        if (!msg.audit_id) return;
+
+        try {
+            await apiClient.post("/learning/feedback", {
+                audit_id: msg.audit_id,
+                rating,
+                correction
+            });
+
+            const newMessages = [...messages];
+            newMessages[msgIndex] = { ...msg, feedback_submitted: true };
+            setMessages(newMessages);
+            setShowCorrectionId(null);
+            setCorrectionText("");
+        } catch (err) {
+            console.error("Failed to submit feedback", err);
         }
     };
 
@@ -113,27 +144,87 @@ export const ChatAssistant: React.FC = () => {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     key={i}
-                                    className={cn(
-                                        "flex gap-3",
-                                        msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                                    )}
+                                    className="space-y-2"
                                 >
                                     <div className={cn(
-                                        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border",
-                                        msg.role === "user"
-                                            ? "bg-white/5 border-white/10"
-                                            : "bg-primary/10 border-primary/20"
+                                        "flex gap-3",
+                                        msg.role === "user" ? "flex-row-reverse" : "flex-row"
                                     )}>
-                                        {msg.role === "user" ? <User className="w-4 h-4 text-foreground/60" /> : <Bot className="w-4 h-4 text-primary" />}
+                                        <div className={cn(
+                                            "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border",
+                                            msg.role === "user"
+                                                ? "bg-white/5 border-white/10"
+                                                : "bg-primary/10 border-primary/20"
+                                        )}>
+                                            {msg.role === "user" ? <User className="w-4 h-4 text-foreground/60" /> : <Bot className="w-4 h-4 text-primary" />}
+                                        </div>
+                                        <div className={cn(
+                                            "max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed relative group",
+                                            msg.role === "user"
+                                                ? "bg-white/5 text-white rounded-tr-none"
+                                                : "bg-primary/5 text-foreground/90 rounded-tl-none border border-primary/10"
+                                        )}>
+                                            {msg.content}
+
+                                            {/* Feedback Actions */}
+                                            {msg.role === "bot" && msg.audit_id && !msg.feedback_submitted && (
+                                                <div className="absolute -bottom-6 left-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pt-1">
+                                                    <button
+                                                        onClick={() => submitFeedback(i, 5)}
+                                                        className="p-1 hover:text-green-500 text-foreground/20 transition-colors"
+                                                        title="Good response"
+                                                    >
+                                                        <Shield className="w-3 h-3" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setShowCorrectionId(i)}
+                                                        className="p-1 hover:text-red-500 text-foreground/20 transition-colors"
+                                                        title="Correction needed"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className={cn(
-                                        "max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed",
-                                        msg.role === "user"
-                                            ? "bg-white/5 text-white rounded-tr-none"
-                                            : "bg-primary/5 text-foreground/90 rounded-tl-none border border-primary/10"
-                                    )}>
-                                        {msg.content}
-                                    </div>
+
+                                    {/* Correction Input Area */}
+                                    {showCorrectionId === i && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            className="bg-red-500/5 border border-red-500/20 rounded-xl p-3 ml-11"
+                                        >
+                                            <p className="text-[10px] text-red-400 font-bold uppercase mb-2">Provide Correction</p>
+                                            <textarea
+                                                value={correctionText}
+                                                onChange={(e) => setCorrectionText(e.target.value)}
+                                                className="w-full bg-black/20 border border-white/5 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-red-500/50 resize-none h-16"
+                                                placeholder="Explain what's wrong or provide a correction..."
+                                            />
+                                            <div className="flex justify-end gap-2 mt-2">
+                                                <button
+                                                    onClick={() => setShowCorrectionId(null)}
+                                                    className="px-2 py-1 text-[10px] text-foreground/40 hover:text-white"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={() => submitFeedback(i, 1, correctionText)}
+                                                    className="px-3 py-1 bg-red-500/20 text-red-500 text-[10px] font-bold rounded-lg border border-red-500/20"
+                                                >
+                                                    Submit Improvement
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )}
+
+                                    {msg.feedback_submitted && (
+                                        <div className="ml-11 text-[10px] text-primary/60 font-medium flex items-center gap-1">
+                                            <Shield className="w-2.5 h-2.5" />
+                                            Feedback utilized in model refinement cycle.
+                                        </div>
+                                    )}
                                 </motion.div>
                             ))}
                             {isLoading && (
@@ -173,7 +264,7 @@ export const ChatAssistant: React.FC = () => {
                                 </button>
                             </div>
                             <p className="mt-3 text-[10px] text-center text-foreground/20 italic">
-                                AI outputs are defensive suggestions. Verify critical actions.
+                                Pillar 8: Human-in-the-loop learning active.
                             </p>
                         </div>
                     </motion.div>
