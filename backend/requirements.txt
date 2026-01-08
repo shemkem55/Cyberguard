@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlalchemy
 psycopg2-binary
 pydantic
@@ -11,3 +11,7 @@ google-generativeai
 python-multipart
 requests
 neo4j
+aiohttp
+numpy
+pgvector
+supabase
